@@ -1,14 +1,14 @@
 const express = require("express");
 const Goods = require("../schemas/goods");
-const Cart = require("../schemas/cart");
 const router = express.Router();
+const Cart = require("../schemas/cart");
 
 //페이지에 글자 적기
 router.get("/", (req, res) => {
   res.send("this is root page");
 });
 
-//상품에 대한것 가져오기
+//상품에 대한것 가져오기(상품전체조회)
 router.get("/goods", async (req, res) => {
   const { category } = req.query;
 
@@ -19,31 +19,30 @@ router.get("/goods", async (req, res) => {
   });
 });
 
-//장바구니에 어떤 상품이 들어가있는지 보여주기
-router.get("/goods/:goodsId", async (req, res) => {
-  const { goodsId } = req.params;
+//장바구니 상세조회
+router.get("/goods/cart", async (req, res) => {
+  const carts = await Cart.find();
+  const goodsIds = carts.map((cart) => cart.goodsId);
 
-  const [detail] = await Goods.find({ goodsId: Number(goodsId) });
+  const goods = await Goods.find({ goodsId: goodsIds });
 
   res.json({
-    detail,
+      cart: carts.map((cart) => ({
+          quantity: cart.quantity,
+          goods: goods.find((item) => item.goodsId === cart.goodsId),
+      })),
   });
 });
 
-
-//장바구니에 상품 추가하기
-router.post("/goods/:goodsId/cart", async (req, res) => {
+//상품 상세조회
+router.get("/goods/:goodsId", async (req, res) => {
   const { goodsId } = req.params;
-  const { quantity } = req.body;
 
-  const existsCarts = await Cart.find({ goodsId: Number(goodsId) });
-  if (existsCarts.length) {
-    return res.status(400).json({ success: false, errorMessage: "이미 장바구니에 존재하는 상품입니다." });
-  }
+  const [goods] = await Goods.find({ goodsId: Number(goodsId) });
 
-
- await Cart.create({ goodsId: Number(goodsId), quantity: quantity });
- res.json({ success: true });
+  res.json({
+    goods,
+  });
 });
 
 
@@ -64,12 +63,12 @@ router.put("/goods/:goodsId/cart", async (req, res) => {
   const { goodsId } = req.params;
   const { quantity } = req.body;
 
- const existsCarts = await Cart.find({ goodsId: Number(goodsId) });
+  const existsCarts = await Cart.find({ goodsId: Number(goodsId) });
   if (!existsCarts.length) {
-    return res.status(400).json({ success: false, errorMessage: "장바구니에 해당 상품이 없습니다." });
+    await Cart.create({ goodsId: Number(goodsId), quantity });
+  } else {
+    await Cart.updateOne({ goodsId: Number(goodsId) }, { $set: { quantity } });
   }
-
-  await Cart.updateOne({ goodsId: Number(goodsId)}, { $set: { quantity }});
 
   res.json({ success: true });
 });
